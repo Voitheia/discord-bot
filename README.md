@@ -1,4 +1,5 @@
 ### TODO
+- requirements.txt?
 - capture and return stdout instead of printing it to console
 - reorganize code so its not a mess
 - improve help menu
