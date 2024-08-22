@@ -28,16 +28,17 @@ async def send_msg(ctx, msg):
 		await ctx.send(f'{msg}')
 
 async def reply_thread(ctx, msg):
-	if not ctx.message.fetch_thread() == None:
-		await ctx.message.create_thread(name=f'{ctx.message.author.name} {ctx.message.content}')
-	
-	#thread = ctx.message.fetch_thread()
+	thread = None
+	try:
+		thread = await ctx.message.create_thread(name=f'{ctx.message.author.name} {ctx.message.content}')
+	except:
+		thread = await ctx.message.fetch_thread()
 
 	if len(msg) >= max_msg_size:
-		await ctx.message.fetch_thread().send(f'{msg[:max_msg_size]}')
+		await thread.send(f'{msg[:max_msg_size]}')
 		await reply_thread(ctx, msg[max_msg_size:])
 	else:
-		await ctx.message.fetch_thread().send(msg)
+		await thread.send(msg)
 
 def run_cmd(cmd):
 	return check_output(cmd, shell=True).decode()
