@@ -6,6 +6,8 @@
   - maybe make implant class instead of using a buncha vars
 - actually have error handling
 - set auto-delete time for threads
+- figure out packaging this as standalone
+- persistence?
 
 ### References
 https://discordpy.readthedocs.io/en/stable/
