@@ -67,6 +67,7 @@ Default values:
 
 ### TODO
 - implement way to target multiple implants at once
+- look into creating custom groupings of implants
 - figure out packaging this as standalone
 - persistence?
 
