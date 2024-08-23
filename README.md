@@ -68,6 +68,8 @@ Default values:
 ### TODO
 - implement way to target multiple implants at once
 - look into creating custom groupings of implants
+  - array field in Implant class?
+  - when someone adds an implant to a group that group id goes into the array or something like that
 - figure out packaging this as standalone
 - persistence?
 
