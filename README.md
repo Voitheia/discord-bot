@@ -85,6 +85,7 @@ Default values:
 ### TODO
 - figure out packaging this as standalone
 - persistence?
+- add some amount of jitter to help prevent rate limiting
 
 - requirements.txt?
 - improve help menu
