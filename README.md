@@ -1,8 +1,6 @@
 ### TODO
 - requirements.txt?
 - improve help menu
-- auto capture what user implant is running as
-  - need some logic for if windows or linux here
 - figure out packaging this as standalone
 - persistence?
 - is there a length limit to the command that can be passed thru the bot? just the standard discord msg limit?
