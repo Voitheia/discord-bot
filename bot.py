@@ -410,4 +410,4 @@ async def kill(ctx, arg):
 	await ctx.message.add_reaction('💀')
 	sys.exit()
 
-bot.run("MTI3NTgyNTA2MTM3ODY1ODM2Nw.G1e8mP.3hhbRTZ6dpz8oefx5bxB9MOtBbA4KB2a6-TBHs")
+bot.run(TOKEN)
