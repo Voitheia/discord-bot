@@ -1,5 +1,5 @@
 ## CDE '24 Discord Bot C2
-Python based discord bot intended to be run as an implant on windows or linux. Able to run commands through python's `check_output` function and return output back to the discord server in a response thread to the command message. Also able to manage a "sessions" text channel where the bot instances will heartbeat, post their info, and react to stale or dead implants.
+Python based discord bot intended to be run as an implant on windows or linux. Able to run commands through python's `check_output` function and return output back to the discord server in a response thread to the command message. Also able to manage a "sessions" text channel where the bot instances will heartbeat, post their info, and react to stale or dead implants. The script expected a file named `token.txt` to exist along side it and to contain a discord bot token in order for the bot to run.
 
 ### Commands
 All commands are prefixed with `>`.
